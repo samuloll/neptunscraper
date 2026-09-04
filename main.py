@@ -17,7 +17,8 @@ messages = {
     "Develop":"Develop this phase",
     "LoggedIn": "Ok works now",
     "YouCan" : "Most rátudsz jelentkezni",
-    "YouCant" : "Most nem tudsz rájelentkezni"
+    "YouCant" : "Most nem tudsz rájelentkezni",
+    "Error" : "May need human"
 }       
        
 def clearing_env(subjectcode, course_number):
@@ -48,21 +49,24 @@ def login(username, password, driver):
     next_button.click()
     driver.implicitly_wait(2)
 
-def getting_to_subjects(driver):
+def getting_to_subjects(driver, first):
     tries = 0
     driver.get("https://neptun.elte.hu/" + "ToNeptunWeb/ToNeptunHWeb")
-    while not driver.current_url== "https://neptun.elte.hu/ToNeptunWeb/ToNeptunHWeb" and not tries > 3:
-        tries += 1
-        time.sleep(3)
-    tries = 0
+    if first:
+        while not driver.current_url== "https://neptun.elte.hu/ToNeptunWeb/ToNeptunHWeb" and not tries > 3:
+            tries += 1
+            time.sleep(3)
+    else:
+        driver.get("https://hallgato4.neptun.elte.hu/dashboard")
     while not "dashboard" in driver.current_url and not tries > 3:
         tries += 1
         time.sleep(3)
     if not driver.current_url == "https://hallgato4.neptun.elte.hu/dashboard":
+        print("NEm a dashboard volt")
         return False
     driver.get("https://hallgato4.neptun.elte.hu/subjects/registration")
     if not driver.current_url == "https://hallgato4.neptun.elte.hu/subjects/registration":
-        time.sleep(10)
+        time.sleep(2)
     return True
 
 def searching_for_subject(driver, subjectcode):
@@ -79,12 +83,14 @@ def searching_for_subject(driver, subjectcode):
     except Exception as e:
         tries = 0
     search_box_input = driver.find_element(By.ID, "title-form-input")
-    search_box_input.send_keys(subjectcode)
+    if not search_box_input.get_attribute("value") == subjectcode:
+        search_box_input.send_keys(subjectcode)
     search_box_button = driver.find_element(By.ID, "filter-table")
     search_box_button.click()
     time.sleep(2)
     expand_box = driver.find_element(By.CLASS_NAME, "mat-expansion-indicator")
     expand_box.click()
+    time.sleep(3)
     classes = driver.find_element(By.ID, "subject-registration-subject-list-0-course-list-0")
 
     return classes.find_elements(By.XPATH, "./div/neptun-course-list-item")
@@ -102,16 +108,12 @@ def making_right_array():
     return array
 
 
-def calculating(array, course_number, urlYouCan, urlYouCant):
+def calculating(array, course_number):
     index = (course_number-1)
     attedence_number = int(array[index].split(" ")[0])
     max_number = int(array[index].split(" ")[1])
-    if (attedence_number < max_number):
-        requests.get(urlYouCan)
-    else:
-        requests.get(urlYouCant)
-    
     print(f"attandence: {attedence_number} max_number: {max_number}")
+    return (attedence_number < max_number)
 
 
 if __name__ == "__main__":
@@ -120,7 +122,7 @@ if __name__ == "__main__":
     chat_id = os.getenv("CHAT_ID")
 
     urlYouCan = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={messages["YouCan"]}"
-    urlYouCant = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={messages["YouCant"]}"
+    urlError= f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={messages["Error"]}"
 
     username = os.getenv("USERNAME")
     password = os.getenv("PASSWORD")
@@ -133,11 +135,24 @@ if __name__ == "__main__":
     driver = webdriver.Chrome()
     driver.get("https://neptun.elte.hu/Account/Login")
     login(username, password, driver)
-    getting_to_subjects(driver)
-    classes = searching_for_subject(driver, subjectcode)
-    with open(".adatok", "w") as file:
-        for item in classes:
-            file.write(item.text)
-    array = making_right_array()
-    calculating(array, course_number, urlYouCan, urlYouCant)
-        
+    good = False
+    error = False
+    tries = 0
+    while not good:
+        if not getting_to_subjects(driver, (tries==0)):
+            good = True
+            error = True
+        classes = searching_for_subject(driver, subjectcode)
+        with open(".adatok", "w") as file:
+            for item in classes:
+                file.write(item.text)
+        array = making_right_array()
+        if calculating(array, course_number):
+            good = True
+            requests.get(urlYouCan)
+        tries += 1
+        if not good:
+            time.sleep(600)
+    if error:
+        requests.get(urlError)
+    driver.close()
