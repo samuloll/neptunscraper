@@ -6,6 +6,8 @@ import time
 from dotenv import load_dotenv
 import random
 from functions import sendMessage, calculating, clearing_env, login, searching_for_subject, making_right_array, getting_to_subjects, change_course
+from selenium.webdriver.chrome.options import Options
+
 
 
 
@@ -23,10 +25,16 @@ if __name__ == "__main__":
      
     clearing_env(subjectcode, course_number)
 
+    options = Options()
+    options.add_argument("--headless=new")  # A modern headless motor
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")  # Érdemes fix felbontást adni, hogy a gombok ne essenek szét
+
     good = False
     tries = 0
     current_url = ""
-    driver = webdriver.Chrome()
+
+    driver = webdriver.Chrome(options=options)
     login(username, password, driver)
     while not good:
         try:
@@ -46,6 +54,8 @@ if __name__ == "__main__":
             if not good:
                 time.sleep(sleep)
         except Exception as e:
+            print("Exception")
+            time.sleep(30)
             driver.quit()
             tries = 0
             driver = webdriver.Chrome()
