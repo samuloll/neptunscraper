@@ -58,7 +58,7 @@ if __name__ == "__main__":
             time.sleep(30)
             driver.quit()
             tries = 0
-            driver = webdriver.Chrome()
+            driver = webdriver.Chrome(options=options)
             login(username, password, driver)
             current_url = ""
 
